@@ -1,0 +1,79 @@
+using UnityEngine;
+using SubDrone.Inputs;
+
+namespace SubDrone.Drone
+{
+    [RequireComponent(typeof(Rigidbody))]
+    public sealed class DroneController3D : MonoBehaviour
+    {
+        [Header("References")]
+        public InputRouter input;
+
+        [Header("Movement")]
+        public float thrust = 16f;
+        public float strafeThrust = 10f;
+        public float verticalThrust = 8f;
+        public float maxSpeed = 14f;
+        public float dragInWater = 1.6f;
+
+        [Header("Rotation")]
+        public float yawSpeed = 75f;
+        public float pitchSpeed = 55f;
+        public float rollSpeed = 70f;
+        public float autoLevelStrength = 2f;
+
+        [Header("Boost")]
+        public float boostMultiplier = 1.8f;
+        public KeyCode boostKey = KeyCode.LeftShift;
+
+        private Rigidbody _rigidbody;
+
+        private void Awake()
+        {
+            _rigidbody = GetComponent<Rigidbody>();
+            _rigidbody.useGravity = false;
+            _rigidbody.drag = dragInWater;
+            _rigidbody.angularDrag = 3f;
+        }
+
+        private void FixedUpdate()
+        {
+            var planarInput = input != null ? input.Move : Vector2.zero;
+
+            var forward = Mathf.Clamp(planarInput.y, -1f, 1f);
+            var strafe = Mathf.Clamp(planarInput.x, -1f, 1f);
+
+            var vertical = 0f;
+            if (UnityEngine.Input.GetKey(KeyCode.E) || UnityEngine.Input.GetKey(KeyCode.R))
+            {
+                vertical += 1f;
+            }
+
+            if (UnityEngine.Input.GetKey(KeyCode.Q) || UnityEngine.Input.GetKey(KeyCode.F))
+            {
+                vertical -= 1f;
+            }
+
+            var isBoosting = UnityEngine.Input.GetKey(boostKey);
+            var boost = isBoosting ? boostMultiplier : 1f;
+
+            var force = (transform.forward * forward * thrust + transform.right * strafe * strafeThrust + transform.up * vertical * verticalThrust) * boost;
+            _rigidbody.AddForce(force, ForceMode.Force);
+
+            if (_rigidbody.velocity.magnitude > maxSpeed * boost)
+            {
+                _rigidbody.velocity = _rigidbody.velocity.normalized * maxSpeed * boost;
+            }
+
+            var yaw = input != null ? input.Turn : strafe;
+            var pitch = -forward;
+            var roll = -strafe;
+
+            var torque = transform.up * yaw * yawSpeed + transform.right * pitch * pitchSpeed + transform.forward * roll * rollSpeed;
+            _rigidbody.AddTorque(torque * Mathf.Deg2Rad, ForceMode.Force);
+
+            var levelTorque = Vector3.Cross(transform.up, Vector3.up) * autoLevelStrength;
+            _rigidbody.AddTorque(levelTorque, ForceMode.Force);
+        }
+    }
+}
